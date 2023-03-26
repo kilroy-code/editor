@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/jasmine.css"/>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/jasmine.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/jasmine-html.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/boot.js"></script>
+  </head>
+  <body>
+    <script type="module" src="../text.mjs"></script>
+    <div id="editor" tabindex="0">
+      <h1>foo bar</h1>
+      <p>The quick brown fox</p>
+      <div>
+	<b>xx</b>
+	<i>aabbcc</i> <!-- The focus or anchor (or both) will be within this. -->
+	<a>zz</a>
+      </div>
+      <p>jumps over the lazy dog.</p>
+      <p>Pack my box</p>
+      <li>with five dozen</li>
+      <li>liquor jugs</li>
+      <li id="red">red</li>
+      <li id="white">white</li>
+      <li id="blue">blue</li>
+      <li id="green">green</li>
+      <li id="yellow">yellow</li>
+      <p>more here</p>
+    </div>
+    <script type="module" src="./textSpec.mjs"></script>
+  </body>
+</html>

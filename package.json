@@ -1,0 +1,32 @@
+{
+  "name": "text-edit",
+  "version": "0.0.1",
+  "description": "ki1r0y multi-user text editing",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "jasmine"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/kilroy-code/text-edit.git"
+  },
+  "keywords": [
+    "text",
+    "edit",
+    "ki1r0y",
+    "multi-user",
+    "croquet"
+  ],
+  "author": {
+    "name": "Howard Stearns",
+    "email": "howard@ki1r0y.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kilroy-code/text-edit/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "homepage": "https://github.com/kilroy-code/text-edit#readme"
+}
