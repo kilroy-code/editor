@@ -89,7 +89,7 @@ describe('Editing', function () {
 	  extentOffset = selectStart + selectLength;
       if (reversed) editor.selection.setBaseAndExtent(extent, extentOffset, base, baseOffset);
       else editor.selection.setBaseAndExtent(base, baseOffset, extent, extentOffset);
-      editor.defaultKeyHandler(inserted);
+      editor.replaceWithText(inserted);
     });
     function checkResults() { // The actual tests, confirming what must be true for all results.
       it('contains all and only expected.', function () {
