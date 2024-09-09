@@ -21,7 +21,7 @@ describe('Editing', function () {
   let content = document.createElement('div');
   // Include text content in the DOM only during the tests.
   beforeAll(function () { document.body.append(content); });
-  afterAll(function () { content.remove(); });
+  //afterAll(function () { content.remove(); }); // fixme restore
 
   // Confirm some corner-case behavior that we depend on.
   describe('browser', function () {
@@ -104,6 +104,7 @@ describe('Editing', function () {
 
   describe('editor', function () {
     let editor = new TextEditor({selection: document.getSelection(), content});
+    window.editor = editor; window.content = content;// fixme remove
 
     describe('replaceWithText', function () { // Exercise editor.replaceWithText in lots of selection configurations.
       let beforeOffset = null,
@@ -299,22 +300,57 @@ describe('Editing', function () {
         });
       });
     });
-    xdescribe('off', function () {
+    describe('off', function () {
       describe('of non-empty selection', function () {
         it('removes simple full range.', function () {
           content.innerHTML = '<x>foo</x>';
           editor.selection.setBaseAndExtent(content.firstElementChild.firstChild, 0, content.firstElementChild.firstChild, 3);
           editor.toggle('X');
           expect(content.innerHTML).toBe('foo');
+          expect(editor.selection.focusNode.textContent).toBe('foo');
+          expect(editor.selection.focusNode).toBe(editor.selection.anchorNode);
+          expect(editor.selection.anchorOffset).toBe(0);
+          expect(editor.selection.focusOffset).toBe(3); 
         });
-        xit('removes from multiple levels.', function () {
+        it('removes from inner full range.', function () {
+          content.innerHTML = '<y><x>foo</x></y>';
+          editor.selection.setBaseAndExtent(content.firstElementChild.firstElementChild.firstChild, 0, content.firstElementChild.firstElementChild.firstChild, 3);
+          editor.toggle('X');
+          expect(content.innerHTML).toBe('<y>foo</y>');
+          expect(editor.selection.focusNode.textContent).toBe('foo');          
+          expect(editor.selection.focusNode).toBe(editor.selection.anchorNode);          
+          expect(editor.selection.anchorOffset).toBe(0);
+          expect(editor.selection.focusOffset).toBe(3); 
+        });
+        it('removes from outer full range.', function () {
+          content.innerHTML = '<x><y>foo</y></x>';
+          editor.selection.setBaseAndExtent(content.firstElementChild.firstElementChild.firstChild, 0, content.firstElementChild.firstElementChild.firstChild, 3);
+          editor.toggle('X');
+          expect(content.innerHTML).toBe('<y>foo</y>');
+          expect(editor.selection.focusNode.textContent).toBe('foo');          
+          expect(editor.selection.focusNode).toBe(editor.selection.anchorNode);          
+          expect(editor.selection.anchorOffset).toBe(0);
+          expect(editor.selection.focusOffset).toBe(3); 
+        });
+        it('removes from moddle full range.', function () {
+          content.innerHTML = '<z><x><y>foo</y></x></z>';
+          editor.selection.setBaseAndExtent(content.firstElementChild.firstElementChild.firstElementChild.firstChild, 0, content.firstElementChild.firstElementChild.firstElementChild.firstChild, 3);
+          editor.toggle('X');
+          expect(content.innerHTML).toBe('<z><y>foo</y></z>');
+          expect(editor.selection.focusNode.textContent).toBe('foo');          
+          expect(editor.selection.focusNode).toBe(editor.selection.anchorNode);          
+          expect(editor.selection.anchorOffset).toBe(0);
+          expect(editor.selection.focusOffset).toBe(3); 
+        });
+        it('removes from multiple levels and nodes.', function () {
           content.innerHTML = 'foo <x>bar </x><y><x><z>something</z></x></y> <x>quux</x> baz';
           editor.selection.setBaseAndExtent(content.firstElementChild.firstChild, 0, content.lastElementChild.firstChild, 4);
           editor.toggle('X');
           expect(content.innerHTML).toBe('foo bar <y><z>something</z></y> quux baz');
-          expect(editor.selection.isCollapsed).toBeFalsy();
-          //expect(editor.selection.focusNode.outerHTML).toBe('<X></X>')
-          //expect(editor.selection.focusOffset).toBe(0);
+          expect(editor.selection.anchorNode.textContent).toBe('bar ')
+          expect(editor.selection.anchorOffset).toBe(0);
+          expect(editor.selection.focusNode.textContent).toBe('quux')
+          expect(editor.selection.focusOffset).toBe(4);
         });
       });
     });

@@ -108,6 +108,10 @@ function nodeString(node) { // Answer a string that helps us identify what node 
   }
 }
 
+function nodeParts(node) { // childNodes or textContent
+  return isText(node) ? node.textContent : node.childNodes;
+}
+
 export class TextEditor {
   constructor({selection, content}) {
     Object.assign(this, {selection, content});
@@ -202,11 +206,12 @@ export class TextEditor {
     selection.setPosition(focusNode, offset);
   }
   // Inline formatting
-  wrap(node, tag, parent = node.parentElement) { // Wrap entire node in a tag element, retaining position in parent.
+  wrap(node, tag, parent = node.parentElement) { // Wrap entire node in a tag element, retaining position in parent, and answering the wrapping element.
     this.debug('wrap:', node, tag);
     let added = document.createElement(tag);
     parent.replaceChild(added, node);
     added.appendChild(node);
+    return added;
   }
   //            +---------------------------------+
   //            |                    range        |
@@ -220,15 +225,20 @@ export class TextEditor {
   // before|                                          | node after|
   // ------+                                          +-----------+
   format(tag, range, node, inRangeOn, outOfRangeOn) {
-    // Format with tag the leaf text of node, removing tag nodes (preserving children) along the way.
-    // Text nodes are split up as needed (e.g., if a text node crosses the range).
-    // The text nodes within the range are surrounded with tag only if inRangeOn is true -- i.e., if selection focus is not within a tag or tag ancestor.
+    // Operate on descendants of node that are within range.
+    // Elements matching tag are removed (as they may be added back immediately around leaf text).
+    // The text nodes within the range are surrounded with tag only if inRangeOn is true.
     // The text nodes outside the range are surrounded with tag only if outofRangeOn is true.
-    // Answers the [start, end] nodes of range, which after modification might be newly created or split text nodes.
+    //
+    // Text nodes are split up as needed (e.g., if a text node crosses the range).
+    // Answers the [start, end, possiblyReplacedNode], where
+    //   start, end are text node descendants of node that are within range (if any), which after modification might be newly created or split.
+    //   possiblyReplacedNode is node or a wrapper around it.
     let {startContainer, startOffset, endContainer, endOffset} = range;
     this.debug('format:', tag, startContainer, startOffset, endContainer, endOffset, 'node/in/out:', node, inRangeOn, outOfRangeOn);
     if (isText(node)) {
-      // Surround just the part of node that is within range.
+      if (!inRangeOn) return [node, node, node];
+      // Surround just the part of node that is within range, splitting as needed.
       //let added = document.createElement(tag),
       //parent = node.parentNode;
       let compareStart = range.comparePoint(node, 0),
@@ -253,34 +263,42 @@ export class TextEditor {
 	//this.debug({node, compareStart, compareEnd, startContainer, startOffset, endContainer, endOffset});
 	return [];
       }
-      //this.assert(inRangeOn, 'Format of text node was asked to remove formatting.')
-      this.wrap(node, tag);
+      let wrapped = this.wrap(node, tag);
       //this.debug(node, parent.childNodes);
       //parent.replaceChild(added, node);
       //added.appendChild(node);
       this.debug('formatted text from', node, 'to', node);
-      return [node, node];
+      return [node, node, wrapped];
     }
+    // Node is an element: recursively format each child.
     let start, end,
 	//newParent = (node.tagName === tag) ? node.parentElement : null,
 	removeNode = (node.tagName === tag),
 	childNodes = [...node.childNodes]; // A copy!
     for (let index = 0; index < childNodes.length; index++) {
       let child = childNodes[index];
-      if (removeNode) {
-	node.parentElement.insertBefore(child, node); // FIXME: AFTER format(), because it will muck with range.
-	
+      let childItems = nodeParts(child);
+      this.debug('child/items', child, childItems);
+      let before = range.comparePoint(child, childItems.length) < 0;
+      let after = range.comparePoint(child, 0) > 0;
+      //this.debug('before recursing, node:', node, 'child:', child);
+      let [first, last, modifiedChild] = this.format(tag, range, child, inRangeOn, outOfRangeOn || removeNode/*newParent*/);
+      if (removeNode) { // If node is to be removed, each child is pulled up one level, at node's position.
+        //this.debug('before hoisting:', node, '(possibly modified) child:', modifiedChild);
+	node.parentElement.insertBefore(modifiedChild, node); // After recursing, as this mucks with range.
       }
-      let [first, last] = this.format(tag, range, child, inRangeOn, outOfRangeOn || removeNode/*newParent*/);
-      //if (!start && first) start = first;
-      //if (last) end = last;
-      start ||= first;
-      end = last || end;
+      // IFF node is within range, make note of start/end.
+      if (!before) start ||= first;
+      if (!after) end = last || end;
       //this.debug({index, child, first, last, start, end});
     }
-    if (removeNode && !node.childNodes.length) node.parentElement.removeChild(node);
-    this.debug('fomatted element from', start, 'to', end);
-    return [start, end];
+    if (removeNode) {
+      this.assert(!node.childNodes.length, 'A child node remains in removed node', node);
+      node.remove();
+      //node.parentElement.removeChild(node);
+    }
+    this.debug('formatted element from', start, 'to', end, node.outerHTML);
+    return [start, end, !removeNode && node];
   }
   toggle(tag) { // Toggle tag off or on for range, retaining selection.
     // Determine overall whether/how we are within an existing tag element, format each range accordingly, and then reset selection.
