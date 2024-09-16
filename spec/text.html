@@ -5,9 +5,13 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/jasmine.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/jasmine-html.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jasmine/3.4.0/boot.js"></script>
+    <style>
+      #editor {outline: none;} /* which would othewise have a border on :focus */s
+    </style>
   </head>
   <body>
     <script type="module" src="../text.mjs"></script>
+    <p>This paragraph is not editable.</p>
     <div id="editor" tabindex="0">
       <h1>foo bar</h1>
       <p>The quick brown fox</p>

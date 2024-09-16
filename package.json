@@ -2,7 +2,16 @@
   "name": "text-edit",
   "version": "0.0.1",
   "description": "ki1r0y multi-user text editing",
-  "main": "index.mjs",
+  "type": "module",
+  "exports": {
+    "default": "./index.mjs"
+  },
+  "imports": {
+    "#window": {
+      "node": "./window-node.mjs",
+      "default": "./window-browser.mjs"
+    }
+  },
   "scripts": {
     "test": "jasmine"
   },
@@ -28,5 +37,8 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
-  "homepage": "https://github.com/kilroy-code/text-edit#readme"
+  "homepage": "https://github.com/kilroy-code/text-edit#readme",
+  "devDependencies": {
+    "jsdom": "^24.1.1"
+  }
 }
