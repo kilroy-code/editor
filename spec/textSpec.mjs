@@ -249,7 +249,7 @@ describe('Editing', function () {
         //   The the entire word is toggled in Pages to the opposite of the character to the left of the caret, with the caret left within the new formatting so that future characters match.
         // If the collapased caret is at the start of a word, Pages still looks to the left of the caret, but the opposite formatting applies to new text inserted between caret and the word start.
         describe('around the text of a non-empty selection', function () {
-          it('works for all text.', function () {
+          it('works for plain text.', function () {
             content.innerHTML = 'foo bar baz'; 
             editor.selection.setBaseAndExtent(content.firstChild, 4, content.firstChild, 7);
             editor.toggle('X');
