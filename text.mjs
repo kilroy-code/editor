@@ -103,7 +103,7 @@ function findAncestorWithTag(node, tag) { // Answer first ancestor with the spec
 function nodeString(node) { // Answer a string that helps us identify what node is while debugging, or node if it isn't a Node
   switch (node?.nodeType) {
   case undefined: return node;
-  case Node.TEXT_NODE: return node.textContent;
+  case Node.TEXT_NODE: return `'${node.textContent}'`;
   default: return node.outerHTML;
   }
 }
@@ -213,6 +213,12 @@ export class TextEditor {
     added.appendChild(node);
     return added;
   }
+  unwrap(node, logIndent = '') { // Replace node with it's children
+    this.debug(logIndent, 'unwrap', node);
+    node.replaceWith(...node.childNodes);
+  }
+  // Nodes are processed for formatting based on the nodes relation to the range:
+  //
   //            +---------------------------------+
   //            |                    range        |
   // +----------------------+ +-------------+ +-------------------+
@@ -224,7 +230,46 @@ export class TextEditor {
   // ------+                                          +-----------+
   // before|                                          | node after|
   // ------+                                          +-----------+
-  format(tag, range, node, inRangeOn, outOfRangeOn, logIndent = '') {
+  splitTextNode(tag, range, node, inRangeOn, outOfRangeOn, logIndent = '', compareStart, compareEnd) {
+    // Surround just the part of node that is within range, splitting as needed.
+    let {startOffset, endOffset} = range;
+
+    // No need to break up text:
+    if (!outOfRangeOn && (compareEnd < 0 || compareStart > 0)) { // Node is entirely before or entirely after range.
+      this.debug(logIndent, 'format skipped for !outOfRangeOn, compareStart/End', compareStart, compareEnd);
+      return [];
+    }
+    if (!inRangeOn && compareStart === 0 && compareEnd === 0) { // Node is entirely within range.
+      this.debug(logIndent, 'format skipped for !inRangeOn, compareStart/End', compareStart, compareEnd);
+      return [node, node, node];
+    }
+
+    // Break up node into two or three parts, after which node is the part in-range.
+    // The part of text within range will be left in the variable 'node'.
+    if (compareStart < 0 && compareEnd === 0) {          // node straddles start
+      node = node.splitText(range.startOffset);
+      if (outOfRangeOn) this.wrap(node.previousSibling, tag, logIndent);
+    } else if (compareStart === 0 && compareEnd > 0) {   // node straddles end
+      node = node.splitText(range.endOffset);
+      node = node.previousSibling; // Subtle: split returns the newly created node, preserving order. But it might not be second of parent!
+      if (outOfRangeOn) this.wrap(node.nextSibling, tag, logIndent);
+    } else if (compareStart === 0 && compareEnd === 0) { // node entirely inside
+      // no need to split
+    } else if (compareStart < 0 && compareEnd > 0) {     // node straddles range
+      let {startOffset, endOffset} = range;
+      node = node.splitText(startOffset);
+      node = node.splitText(endOffset - startOffset);
+      node = node.previousSibling;
+      if (outOfRangeOn) {
+        this.wrap(node.previousSibling, tag, logIndent);
+        this.wrap(node.nextSibling, tag, logIndent);
+      }
+    }
+    let wrapped = inRangeOn ? this.wrap(node, tag, logIndent) : node; //fixme
+    this.debug(logIndent, 'formatted text in', node, wrapped);
+    return [node, node, wrapped];
+  }
+  format({tag, range, node, inRangeOn, outOfRangeOn, logIndent = ''}) {
     // Operate on descendants of node that are within range.
     // Elements matching tag have the tag removed (leaving their contents included), as they may be added back immediately around leaf text.
     // Text nodes are split up as needed (e.g., if a text node crosses the range).
@@ -234,80 +279,51 @@ export class TextEditor {
     //   start, end are text node descendants of node that are within range (if any), which after modification might be newly created or split.
     //   possiblyReplacedNode is node or a wrapper around it.
     let {startContainer, startOffset, endContainer, endOffset} = range;
+    let compareStart = range.comparePoint(node, 0),
+        compareEnd = range.comparePoint(node, nodeParts(node).length);
     this.debug(logIndent, 'format:', tag, startContainer, startOffset, endContainer, endOffset, 'node/in/out:', node, inRangeOn, outOfRangeOn);
-    if (isText(node)) {
-      // Surround just the part of node that is within range, splitting as needed.
-      let compareStart = range.comparePoint(node, 0),
-	  compareEnd = range.comparePoint(node, node.textContent.length);
-
-      // No need to break up text:
-      if (!outOfRangeOn && (compareEnd < 0 || compareStart > 0)) { // Node is entirely before or entirely after range.
-        this.debug(logIndent, 'format skipped for !outOfRangeOn, compareStart/End', compareStart, compareEnd);
-        return [];
-      }
-      if (!inRangeOn && compareStart === 0 && compareEnd === 0) { // Node is entirely within range.
-        this.debug(logIndent, 'format skipped for !inRangeOn, compareStart/End', compareStart, compareEnd);
-        return [node, node, node];
-      }
-
-
-      // Break up node into two or three parts, after which node is the part in-range.
-      if (compareStart < 0 && compareEnd === 0) {          // node straddles start
-	node = node.splitText(range.startOffset);
-      } else if (compareStart === 0 && compareEnd > 0) {   // node straddles end
-	node = node.splitText(range.endOffset);
-	node = node.previousSibling; // Subtle: split returns the newly created node, preserving order. But it might not be second of parent!
-      } else if (compareStart === 0 && compareEnd === 0) { // node entirely inside
-	// no need to split
-      } else if (compareStart < 0 && compareEnd > 0) {     // node straddles range
-        let {startOffset, endOffset} = range;
-        console.log({node: node.textContent, compareStart, compareEnd, startOffset, endOffset});
-	node = node.splitText(startOffset);
-        console.log(node.textContent);
-
-	node = node.splitText(endOffset - startOffset);
-        console.log(node.textContent);
-
-	node = node.previousSibling;
-      }
-      let wrapped = this.wrap(node, tag, logIndent);
-      let end = outOfRangeOn ? wrapped.nextSibling : node;
-      this.debug(logIndent, 'formatted text from', node, 'to', end, outOfRangeOn);
-      return [node, end, wrapped];
-    }
+    if (isText(node)) return this.splitTextNode(tag, range, node, inRangeOn, outOfRangeOn, logIndent, compareStart, compareEnd);
     // Node is an element: recursively format each child.
     let start, end,
-	//newParent = (node.tagName === tag) ? node.parentElement : null,
 	removeNode = (node.tagName === tag),
-	childNodes = [...node.childNodes]; // A copy!
+	childNodes = [...node.childNodes], // A copy!
+        internalIndent = '   '+logIndent;
     let childOutOfRangeOn = outOfRangeOn || removeNode;
+    ///*
+    if (removeNode) {
+      this.debug(internalIndent, 'before', range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+      this.unwrap(node, internalIndent); // In some browsers, this mucks with the range that had pointed within node. Reset it.
+      range.setStart(startContainer, startOffset);
+      range.setEnd(endContainer, endOffset);
+      this.debug(internalIndent, 'after', range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+    }
+    //*/
     for (let index = 0; index < childNodes.length; index++) {
       let child = childNodes[index];
-      let childItems = nodeParts(child);
-      this.debug(logIndent, 'child/items', child, childItems);
-      let before = range.comparePoint(child, childItems.length) < 0;
-      let after = range.comparePoint(child, 0) > 0;
-      //this.debug(logIndent, 'before recursing, node:', node, 'child:', child);
-      let [first, last, modifiedChild] = this.format(tag, range, child, inRangeOn, childOutOfRangeOn, '   '+logIndent);
+      this.debug(internalIndent, 'child', child);
+      //let fixme = child;
+      //if (first && inRangeOn && isText(child)) fixme = this.wrap(first, tag, internalIndent);
+      let [first, last, modifiedChild] = this.format({tag, range, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
+      /*
       if (removeNode) { // If node is to be removed, each child is pulled up one level, at node's position.
-        //this.debug(logIndent, 'before hoisting:', node, '(possibly modified) child:', modifiedChild);
-	node.parentElement.insertBefore(modifiedChild, node); // After recursing, as this mucks with range.
-      }
-      // IFF node is within range, make note of start/end.
-      if (!before) start ||= first;
-      if (!after) end = last || end;
-      //this.debug(logIndent, {index, child, first, last, start, end});
+         node.parentElement.insertBefore(modifiedChild, node); // After recursing, as this mucks with range.
+       }
+      */
+      start ||= first;
+      end = last || end;
     }
-    this.debug(logIndent, 'removeNode:', removeNode, 'outOfRangeOn:', outOfRangeOn, 'childOutofRangeOn:', childOutOfRangeOn, node, 'start/end:', start, end);
-    removeNode = !node.childNodes.length;
-    if (removeNode) { //(removeNode && !childOutOfRangeOn) {
-      this.debug(logIndent, 'removeNode', node, inRangeOn, outOfRangeOn);
-      //this.assert(!node.childNodes.length, 'A child node remains in removed node', node.outerHTML);
+    if (compareEnd < 0) start = null; // do we need these?
+    if (compareStart > 0) end = null;
+    this.debug(internalIndent, 'format processed node:', node, 'removeNode:', removeNode, /*'emptyNode:', emptyNode, */'childOutofRangeOn:', childOutOfRangeOn, 'start/end:', start, end);
+    /*
+    let emptyNode = !node.childNodes.length;
+    if (emptyNode) {
       node.remove();
-      //node.parentElement.removeChild(node);
+      node = null; // do we need this?
     }
-    this.debug(logIndent, 'formatted element from', start, 'to', end, !removeNode, node);
-    return [start, end, !removeNode && node];
+    */
+    this.debug(logIndent, 'formatted element from', start, 'to', end, node);    
+    return [start, end, node];
   }
   toggle(tag) { // Toggle tag off or on for range, retaining selection.  Requires tag to be upper case.
     // Determine overall whether/how we are within an existing tag element, format each range accordingly, and then reset selection.
@@ -324,7 +340,7 @@ export class TextEditor {
 	  ancestor = range.commonAncestorContainer,
 	  fromExisting = existing?.contains(ancestor),
 	  node = fromExisting ? existing : ancestor;
-      let [first, last] = this.format(tag, range, node, !existing, fromExisting);
+      let [first, last] = this.format({tag, range, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
       start ||= first;
       end = last || end;
     }
@@ -332,7 +348,8 @@ export class TextEditor {
     // Text nodes may have been split, but regardless, it will always range over the full start/end text nodes given by format.
     let startOffset = 0, endOffset = end.textContent.length;
     this.debug('toggle start/end:', start, startOffset, end, endOffset, forwards ? 'forwards' : 'backwards');
-    if (!forwards) [start, startOffset, end, endOffset] = [end, endOffset, start, startOffset];
+    if (!forwards) [start, startOffset, end, endOffset] = [end, endOffset, start, startOffset]; // Reverse anchor/focus.  // FIXME: express this as two different setBaseAndExtent calls.
+    // FIXME: this is not right! If there are multiple ranges, they might not be contiguous. Must set range start/end. But... how then is anchor/focus maintained relative to document order?
     selection.setBaseAndExtent(start, startOffset, end, endOffset);
   }
   collapsedForward(amount = 'character') {

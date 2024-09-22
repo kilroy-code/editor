@@ -77,13 +77,11 @@ describe('Editing', function () {
         selection.modify('extend', 'forward', 'character');
         expect(selection.focusNode).toBe(content.lastChild);
         expect(selection.focusOffset).toBe(0);
-        /*
         // Even though there are two space characters after 'inner', they are processed as a single \n.
         // Alas, JSDOM does not get this right.
-        let string = selection.toString();
-        expect(string.length).toBe(3);
-        expect(string[2]).toBe("\n");
-        */
+        // let string = selection.toString();
+        // expect(string.length).toBe(3);
+        // expect(string[2]).toBe("\n");
       });
     });
     describe('Selection at offset 0', function () {
@@ -109,7 +107,6 @@ describe('Editing', function () {
     if (typeof(window) !== 'undefined') {
       window.editor = editor; window.content = content;// fixme remove
     }
-
     describe('replaceWithText', function () { // Exercise editor.replaceWithText in lots of selection configurations.
       let beforeOffset = null,
 	  selectStart,
@@ -117,7 +114,8 @@ describe('Editing', function () {
 	  reversed = false,
 	  nodeText,
 	  inserted, node,
-	  startTemplate = /* We start each test with this structure. */ `
+          // We start each test with this structure.
+	  startTemplate = `
 <div id="outerContainer">
    <b id="beforeContainer">xx</b>
    <i id="innerTextContainer">aabbcc</i> <!-- The focus or anchor (or both) will be within this. -->
@@ -285,8 +283,8 @@ describe('Editing', function () {
             expect(content.innerHTML).toBe('f<x>oo </x><x>b</x><x>ar</x> baz');
             expect(editor.selection.anchorNode.parentNode.outerHTML).toBe('<x>oo </x>');
             expect(editor.selection.anchorOffset).toBe(0);
-            expect(editor.selection.focusNode.parentNode.outerHTML).toBe('<x>ar</x>');
-            expect(editor.selection.focusOffset).toBe(2);
+            expect(editor.selection.focusNode.parentNode.outerHTML).toBe('<x>b</x>');
+            expect(editor.selection.focusOffset).toBe(1);
           });
         });
         describe('in collapsed selections', function () {
@@ -335,8 +333,8 @@ describe('Editing', function () {
         });
       });
     });
-    describe('removal', function () {
-      describe('for non-empty selection', function () {
+    describe('unwrapping', function () {
+      describe('non-empty selection', function () {
         it('removes simple full range.', function () {
           content.innerHTML = '<x>foo</x>';
           editor.selection.setBaseAndExtent(content.firstElementChild.firstChild, 0, content.firstElementChild.firstChild, 3);
@@ -367,7 +365,7 @@ describe('Editing', function () {
           expect(editor.selection.anchorOffset).toBe(0);
           expect(editor.selection.focusOffset).toBe(3); 
         });
-        it('removes from moddle full range.', function () {
+        it('removes from middle full range.', function () {
           content.innerHTML = '<z><x><y>foo</y></x></z>';
           editor.selection.setBaseAndExtent(content.firstElementChild.firstElementChild.firstElementChild.firstChild, 0, content.firstElementChild.firstElementChild.firstElementChild.firstChild, 3);
           editor.toggle('X');
@@ -398,9 +396,9 @@ describe('Editing', function () {
           expect(editor.selection.focusNode.textContent).toBe(' b');
           expect(editor.selection.focusOffset).toBe(2);
         });
-        describe('for collapsed selections', function () {
-          xit('works in empty.....', function () {
-          });
+      });
+      describe('collapsed selections', function () {
+        xit('works in empty.....', function () {
         });
       });
     });
