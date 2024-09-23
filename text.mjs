@@ -3,7 +3,8 @@
 import { Window } from '#window'; // Either browser window, or a jsdom parsed window.
 export const document = Window.document;
 export const Node = Window.Node;
-let Selector = document.getSelection().constructor;
+export const Range = Window.Range;
+export const Selector = document.getSelection().constructor; // Window.Selector might not be defined, but this is.
 if (!Selector.prototype.modify) { // Not present in jsdom. Define our own just-good-enough version.
   // Just enough for our unit tests -- which are testing other things, not this. 
   Selector.prototype.modify = function modify(alteration, direction, granularity) {
@@ -233,7 +234,14 @@ export class TextEditor {
   splitTextNode(node, startContainer, startOffset, endContainer, endOffset) {
     // Splits the text node at the startOffset and endOffset if necessary, based on range compareStart and compareEnd.
     // Returns [before, inRange, after], with each being text nodes made from node, or falsey if not applicable.
-    let range = new (this.selection.getRangeAt(0).constructor)(); range.setStart(startContainer, startOffset); range.setEnd(endContainer, Math.min(endOffset, endContainer.textContent.length));
+
+    // Very subtle non-bug: the range properties were captured in toggle(), and if the start is before node, it is possible that startContainer has since been broken into 2 or three pieces,
+    // such that it the real start point is now slightly further into the document. This doesn't effect us because in that situation, the original and all new pieces are ALL before node.
+
+    // IWBNI we didn't create new Ranges here, and instead compared the nodes and offsets more directly. But it's too easy to make a mistake.
+    let range = new Range();
+    range.setStart(startContainer, Math.min(startOffset, startContainer.textContent.length));;
+    range.setEnd(endContainer, Math.min(endOffset, endContainer.textContent.length));
     let compareStart = range.comparePoint(node, 0),
         compareEnd = range.comparePoint(node, nodeParts(node).length);
 
