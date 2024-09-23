@@ -270,16 +270,15 @@ export class TextEditor {
     let {startContainer, startOffset, endContainer, endOffset} = range;
     let compareStart = range.comparePoint(node, 0),
         compareEnd = range.comparePoint(node, nodeParts(node).length);
-    let internalIndent = '   '+logIndent;
-    this.debug(logIndent, 'format:', tag, startContainer, startOffset, endContainer, endOffset, 'node/in/out:', node, inRangeOn, outOfRangeOn);
+    let internalIndent = '  '+logIndent;
+    this.debug(logIndent, 'format:', node, 'tag/in/out:', tag, inRangeOn, outOfRangeOn, 'selection:', startContainer, startOffset, endContainer, endOffset);
     if (isText(node)) {
-      let answer = this.splitTextNode(node, startOffset, endOffset, compareStart, compareEnd);
-      let [before, inside, after] = answer;
+      let [before, inside, after] = this.splitTextNode(node, startOffset, endOffset, compareStart, compareEnd);;
       let insideText = inside;
       if (before && outOfRangeOn) before = this.wrap(before, tag, internalIndent);
       if (inside && inRangeOn) inside = this.wrap(inside, tag, internalIndent);
       if (after && outOfRangeOn) after = this.wrap(after, tag, internalIndent);
-      this.debug(logIndent, 'format text', before, inside, after/*, adjustStart, adjustEnd*/);
+      this.debug(logIndent, 'format text', startOffset, endOffset, compareStart, compareEnd, '=>', before, inside, after, insideText);
       return [insideText, insideText];
     }
     // Node is an element: recursively format each child, keeping track of the first start we see, and the last end.
@@ -289,13 +288,13 @@ export class TextEditor {
     let childOutOfRangeOn = outOfRangeOn || removeNode;
     for (let index = 0; index < childNodes.length; index++) {
       let child = childNodes[index];
-      this.debug(internalIndent, 'child', child);
+      this.debug(logIndent, 'child', child);
       let [first, last] = this.format({tag, range, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
       start ||= first;
       end = last || end;
     }
     if (removeNode) this.unwrap(node, internalIndent); // After iteration, as this can mess up range.
-    this.debug(logIndent, 'formatted element from', start, 'to', end, node);    
+    this.debug(logIndent, 'formatted element from', start, 'to', end);
     return [start, end];
   }
   toggle(tag) { // Toggle tag off or on for range, retaining selection.  Requires tag to be upper case.
@@ -304,17 +303,16 @@ export class TextEditor {
 	forwards = isForward(selection),
         // If the startNode is within an element with the specified tag, we will be removing the tag.
         startNode = forwards ? selection.anchorNode : selection.focusNode,
-	existing = findAncestorWithTag(startNode, tag), // Todo: Should we first drill down to text, and then up?
-	{rangeCount} = selection;
+	existing = findAncestorWithTag(startNode, tag); // Todo: Should we first drill down to text, and then up?
     this.debug('toggle:', tag, 'ancestor with tag:', existing);
-    for (let index = 0; index < rangeCount; index++) {
+    for (let index = 0; index < selection.rangeCount; index++) {
       let range = selection.getRangeAt(index),
-	  ancestor = range.commonAncestorContainer,
+          ancestor = range.commonAncestorContainer,
 	  fromExisting = existing?.contains(ancestor),
 	  node = fromExisting ? existing : ancestor,
           [first, last] = this.format({tag, range, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
       // Adjust for any text split. first and last are always text nodes entirely within selection.
-      // Is it possible that selection is not updated accordingly? Either at all or as to anchor=>focus pointing backwards?
+      // Is it possible that selection is not updated accordingly? Either at all, or as to anchor=>focus pointing backwards?
       range.setStart(first, 0);
       range.setEnd(last, last.textContent.length);
     }
