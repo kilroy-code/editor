@@ -230,9 +230,12 @@ export class TextEditor {
   // ------+                  +-------------+         +-----------+
   // before|                  | node inside |         | node after|
   // ------+                  +-------------+         +-----------+
-  splitTextNode(node, startOffset, endOffset, compareStart, compareEnd) {
+  splitTextNode(node, startContainer, startOffset, endContainer, endOffset) {
     // Splits the text node at the startOffset and endOffset if necessary, based on range compareStart and compareEnd.
     // Returns [before, inRange, after], with each being text nodes made from node, or falsey if not applicable.
+    let range = new (this.selection.getRangeAt(0).constructor)(); range.setStart(startContainer, startOffset); range.setEnd(endContainer, Math.min(endOffset, endContainer.textContent.length));
+    let compareStart = range.comparePoint(node, 0),
+        compareEnd = range.comparePoint(node, nodeParts(node).length);
 
     // Break up node into two or three parts.
     if (compareStart < 0 && compareEnd === 0) { // node straddles start
@@ -259,7 +262,7 @@ export class TextEditor {
     }
     this.assert(false, 'Impossible comparison', node, compareStart, compareEnd, startContainer, endContainer);
   }
-  format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node, inRangeOn, outOfRangeOn, logIndent = ''}) {
+  format({tag, startContainer, startOffset, endContainer, endOffset, node, inRangeOn, outOfRangeOn, logIndent = ''}) {
     // Operate on descendants of node that are within range.
     // Elements matching tag have the tag removed (leaving their contents included), as they may be added back just above leaf text.
     // Text nodes are split up as needed (e.g., if a text node crosses the range).
@@ -267,19 +270,15 @@ export class TextEditor {
     //   The text nodes outside the range are surrounded with tag only if outofRangeOn is true.
     // Answers the [start, end], where
     //   start, end are text node descendants of node that are within range (if any), which after modification might be newly created or split.
-    //let {startContainer, startOffset, endContainer, endOffset} = range;
     let internalIndent = '  '+logIndent;
     this.debug(logIndent, 'format:', node, 'tag/in/out:', tag, inRangeOn, outOfRangeOn, 'selection:', startContainer, startOffset, endContainer, endOffset);
     if (isText(node)) {
-      let range = new (this.selection.getRangeAt(0).constructor)(); range.setStart(startContainer, startOffset); range.setEnd(endContainer, Math.min(endOffset, endContainer.textContent.length));
-      let compareStart = range.comparePoint(node, 0),
-          compareEnd = range.comparePoint(node, nodeParts(node).length);
-      let [before, inside, after] = this.splitTextNode(node, startOffset, endOffset, compareStart, compareEnd);;
+      let [before, inside, after] = this.splitTextNode(node, startContainer, startOffset, endContainer, endOffset);;
       let insideText = inside;
       if (before && outOfRangeOn) before = this.wrap(before, tag, internalIndent);
       if (inside && inRangeOn) inside = this.wrap(inside, tag, internalIndent);
       if (after && outOfRangeOn) after = this.wrap(after, tag, internalIndent);
-      this.debug(logIndent, 'format text', startOffset, endOffset, compareStart, compareEnd, '=>', before, inside, after, insideText);
+      this.debug(logIndent, 'formatted text', before, inside, after, insideText);
       return [insideText, insideText];
     }
     // Node is an element: recursively format each child, keeping track of the first start we see, and the last end.
@@ -290,7 +289,7 @@ export class TextEditor {
     for (let index = 0; index < childNodes.length; index++) {
       let child = childNodes[index];
       this.debug(logIndent, 'child', child);
-      let [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
+      let [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
       start ||= first;
       end = last || end;
     }
@@ -303,12 +302,13 @@ export class TextEditor {
     let {selection} = this;
     for (let index = 0; index < selection.rangeCount; index++) {
       let range = selection.getRangeAt(index),
+          // We extract the range properties now and pass them down through recursive calls to format, because wrap/unwrap will misalign them in different ways on different systems.
           {startContainer, startOffset, endContainer, endOffset} = range,
           existing = findAncestorWithTag(startContainer, tag), // If the startNode is within an element with the specified tag, we will be removing the tag.
           ancestor = range.commonAncestorContainer,
 	  fromExisting = existing?.contains(ancestor),
 	  node = fromExisting ? existing : ancestor,
-          [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
+          [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset, range, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
       // Adjust for any text split. first and last are always text nodes entirely within selection.
       // Is it possible that selection is not updated accordingly? Either at all, or as to anchor=>focus pointing backwards?
       range.setStart(first, 0);
