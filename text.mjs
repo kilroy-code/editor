@@ -259,7 +259,7 @@ export class TextEditor {
     }
     this.assert(false, 'Impossible comparison', node, compareStart, compareEnd, startContainer, endContainer);
   }
-  format({tag, range, node, inRangeOn, outOfRangeOn, logIndent = ''}) {
+  format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node, inRangeOn, outOfRangeOn, logIndent = ''}) {
     // Operate on descendants of node that are within range.
     // Elements matching tag have the tag removed (leaving their contents included), as they may be added back just above leaf text.
     // Text nodes are split up as needed (e.g., if a text node crosses the range).
@@ -267,12 +267,13 @@ export class TextEditor {
     //   The text nodes outside the range are surrounded with tag only if outofRangeOn is true.
     // Answers the [start, end], where
     //   start, end are text node descendants of node that are within range (if any), which after modification might be newly created or split.
-    let {startContainer, startOffset, endContainer, endOffset} = range;
-    let compareStart = range.comparePoint(node, 0),
-        compareEnd = range.comparePoint(node, nodeParts(node).length);
+    //let {startContainer, startOffset, endContainer, endOffset} = range;
     let internalIndent = '  '+logIndent;
     this.debug(logIndent, 'format:', node, 'tag/in/out:', tag, inRangeOn, outOfRangeOn, 'selection:', startContainer, startOffset, endContainer, endOffset);
     if (isText(node)) {
+      let range = new (this.selection.getRangeAt(0).constructor)(); range.setStart(startContainer, startOffset); range.setEnd(endContainer, Math.min(endOffset, endContainer.textContent.length));
+      let compareStart = range.comparePoint(node, 0),
+          compareEnd = range.comparePoint(node, nodeParts(node).length);
       let [before, inside, after] = this.splitTextNode(node, startOffset, endOffset, compareStart, compareEnd);;
       let insideText = inside;
       if (before && outOfRangeOn) before = this.wrap(before, tag, internalIndent);
@@ -289,7 +290,7 @@ export class TextEditor {
     for (let index = 0; index < childNodes.length; index++) {
       let child = childNodes[index];
       this.debug(logIndent, 'child', child);
-      let [first, last] = this.format({tag, range, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
+      let [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node:child, inRangeOn, outOfRangeOn:childOutOfRangeOn, logIndent:internalIndent});
       start ||= first;
       end = last || end;
     }
@@ -299,18 +300,15 @@ export class TextEditor {
   }
   toggle(tag) { // Toggle tag off or on for range, retaining selection.  Requires tag to be upper case.
     // Determine overall whether/how we are within an existing tag element, format each range accordingly, and then reset selection.
-    let {selection} = this,
-	forwards = isForward(selection),
-        // If the startNode is within an element with the specified tag, we will be removing the tag.
-        startNode = forwards ? selection.anchorNode : selection.focusNode,
-	existing = findAncestorWithTag(startNode, tag); // Todo: Should we first drill down to text, and then up?
-    this.debug('toggle:', tag, 'ancestor with tag:', existing);
+    let {selection} = this;
     for (let index = 0; index < selection.rangeCount; index++) {
       let range = selection.getRangeAt(index),
+          {startContainer, startOffset, endContainer, endOffset} = range,
+          existing = findAncestorWithTag(startContainer, tag), // If the startNode is within an element with the specified tag, we will be removing the tag.
           ancestor = range.commonAncestorContainer,
 	  fromExisting = existing?.contains(ancestor),
 	  node = fromExisting ? existing : ancestor,
-          [first, last] = this.format({tag, range, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
+          [first, last] = this.format({tag, startContainer, startOffset, endContainer, endOffset/*, range*/, node, inRangeOn:!existing, outOfRangeOn:fromExisting});
       // Adjust for any text split. first and last are always text nodes entirely within selection.
       // Is it possible that selection is not updated accordingly? Either at all, or as to anchor=>focus pointing backwards?
       range.setStart(first, 0);
