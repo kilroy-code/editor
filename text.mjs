@@ -135,46 +135,6 @@ export class TextEditor {
 		"Selection has changed! this:", this.selection, "doc:", document.getSelection());
   }
 
-  // Returns a unique canonicalized name string for a key event, recognizable as a Javascript identifier.
-  // e.g., "a", "A", or "ControlAltMetaShiftA".
-  // The names are suitable as method names or object properties.
-  //
-  // Modifier keys get canonicalized into Control, Alt, or Meta.
-  // Mac:
-  //   control modifier reports as Control
-  //   option modifier reports as Alt
-  //   command modifier reports as Meta
-  //   shift modifier reports as Shift
-  // If none of these are used, modifiedKey(event) just return the name of the key. This is usually
-  // just the single character that the user typed, in the correct case, e.g., "a" or "A".
-  // Some keys have canonicalized names such as "Tab", "Enter", "ArrowUp", "CapsLock".
-  //
-  // However, if a modified key was held down, the return string includes all the applicable modifier names in order,
-  // followed by Shift if applicable, and then the key in upper case, e.g., "ControlAltMetaShiftA".
-  //
-  // Browser also emit key events for the modifier keys as they are pressed, and these work the same way.
-  // E.g., if control is held down when you press alt, the alt press would canonicalize as ControlAltALT.
-  // Note that the control key by itself will canonicalize as "ControlCONTROL", which is not === to event.key,
-  // but the shift key by itself, which is not one of Control, Alt, or Meta, will canonicalize as "Shift", which is === to event.key.
-  //
-  // Browsers do not distinguish between left and right modifier keys.
-  
-  modifiedKey(event) {
-    if (!event.ctrlKey && !event.altKey && !event.metaKey) return event.key; // But not shift!
-    function mod(accessor, label) { return event[accessor] ? label : ''; }
-    return `${mod('ctrlKey', 'Control')}${mod('altKey', 'Alt')}${mod('metaKey', 'Meta')}${mod('shiftKey', 'Shift')}${event.key.toUpperCase()}`;
-  }
-  onKey(event) { // Call the method named for the event.key.
-    // FIXME: use part-whole inheritance.
-    let key = this.modifiedKey(event),
-	handler = this[key];
-    this.debug(event.type, key, event.key, handler?.name);
-    if (!handler && (key !== event.key)) return this.debug('no-op', key); // Ignore modified keys that have no explicit handler. (Do not preventDefault.)
-    if (!handler) handler = this.replaceWithText; // The default behavior.
-    handler.call(this, key, event);
-    event.preventDefault(); // Todo: Be careful to check whether we're shadowing browser behavior, by commenting this out and trying all our hotkeys to see what the browser does.
-  }
-
   // Ordinary text.
   replaceWithText(inserted) { // remove selection, insert what is specified, and update the selection.
     // This should work fine for leaves that are anything that slice works on. But we'll need to change the reference to textContent
@@ -336,6 +296,45 @@ export class TextEditor {
     selection.modify('move', 'backward', amount);
   }
 
+  // Returns a unique canonicalized name string for a key event, recognizable as a Javascript identifier.
+  // e.g., "a", "A", or "ControlAltMetaShiftA".
+  // The names are suitable as method names or object properties.
+  //
+  // Modifier keys get canonicalized into Control, Alt, or Meta.
+  // Mac:
+  //   control modifier reports as Control
+  //   option modifier reports as Alt
+  //   command modifier reports as Meta
+  //   shift modifier reports as Shift
+  // If none of these are used, modifiedKey(event) just return the name of the key. This is usually
+  // just the single character that the user typed, in the correct case, e.g., "a" or "A".
+  // Some keys have canonicalized names such as "Tab", "Enter", "ArrowUp", "CapsLock".
+  //
+  // However, if a modified key was held down, the return string includes all the applicable modifier names in order,
+  // followed by Shift if applicable, and then the key in upper case, e.g., "ControlAltMetaShiftA".
+  //
+  // Browser also emit key events for the modifier keys as they are pressed, and these work the same way.
+  // E.g., if control is held down when you press alt, the alt press would canonicalize as ControlAltALT.
+  // Note that the control key by itself will canonicalize as "ControlCONTROL", which is not === to event.key,
+  // but the shift key by itself, which is not one of Control, Alt, or Meta, will canonicalize as "Shift", which is === to event.key.
+  //
+  // Browsers do not distinguish between left and right modifier keys.
+  
+  modifiedKey(event) {
+    if (!event.ctrlKey && !event.altKey && !event.metaKey) return event.key; // But not shift!
+    function mod(accessor, label) { return event[accessor] ? label : ''; }
+    return `${mod('ctrlKey', 'Control')}${mod('altKey', 'Alt')}${mod('metaKey', 'Meta')}${mod('shiftKey', 'Shift')}${event.key.toUpperCase()}`;
+  }
+  onKey(event) { // Call the method named for the event.key.
+    // FIXME: use part-whole inheritance.
+    let key = this.modifiedKey(event),
+	handler = this[key];
+    this.debug(event.type, key, event.key, handler?.name);
+    if (!handler && (key !== event.key)) return this.debug('no-op', key); // Ignore modified keys that have no explicit handler. (Do not preventDefault.)
+    if (!handler) handler = this.replaceWithText; // The default behavior.
+    handler.call(this, key, event);
+    event.preventDefault(); // Todo: Be careful to check whether we're shadowing browser behavior, by commenting this out and trying all our hotkeys to see what the browser does.
+  }
   // Apple command key is Meta
   // No-ops
   Shift() {}
@@ -352,8 +351,18 @@ export class TextEditor {
     }
     this.replaceWithText('');
   }
+  ' '() {
+    this.replaceWithText(' ');
+    let {focusNode, focusOffset} = this.selection,
+        textBefore = focusNode.textContent.slice(focusOffset - 1),
+        endsInAtLeast2spaces = focusOffset > 0 && / \s+$/.test(textBefore);
+    this.debug('here', focusNode, focusOffset, textBefore, endsInAtLeast2spaces);
+    if (endsInAtLeast2spaces) {      
+      focusNode.textContent = focusNode.textContent[focusOffset - 1] + "\u00A0" + focusNode.textContent.slice(focusOffset);
+    }
+  }
   ArrowLeft() {
-      this.collapsedBackward('character');
+    this.collapsedBackward('character');
   }
   ArrowRight() {
     this.collapsedForward('character');

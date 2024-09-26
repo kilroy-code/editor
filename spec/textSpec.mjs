@@ -288,17 +288,17 @@ describe('Editing', function () {
           });
         });
         describe('in collapsed selections', function () {
-          describe('wraps the text of the containing word if the caret is not at the start of the word and the character to the left is not formatted this way', function () {
-            xit('in the text.', function () {
+          describe('with carret not at start of a word', function () {
+            it('toggles from carret.', function () { // Apple Pages gets fancier here.
               content.innerHTML = 'foo b<x>ar</x> baz';
               editor.selection.setBaseAndExtent(content.firstChild, 5, content.firstChild, 5);
               editor.toggle('X');
-              expect(content.innerHTML).toBe('foo <x>bar</x>  baz');
-              expect(editor.selection.isCollapsed).toBeFalsy();
-              expect(editor.selection.anchorNode.textContent).toBe('bar')
-              expect(editor.selection.anchorOffset).toBe(1);
-              expect(editor.selection.focusNode.textContent).toBe('bar')
-              expect(editor.selection.focusOffset).toBe(1);
+              expect(content.innerHTML).toBe('foo b<x></x><x>ar</x> baz');
+              expect(editor.selection.isCollapsed).toBeTruthy();
+              expect(editor.selection.anchorNode.parentNode.outerHTML).toBe('<x></x>')
+              expect(editor.selection.anchorOffset).toBe(0);
+              expect(editor.selection.focusNode.parentNode.outerHTML).toBe('<x></x>')
+              expect(editor.selection.focusOffset).toBe(0);
             });
           });
         });
